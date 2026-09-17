@@ -1,5 +1,5 @@
 import MetricsTable from "./components/MetricsTable";
-import useTelemetryStream from "./workers/useTelemetryStream"
+import useTelemetryStream from "./workers/useTelemetryStream.ts"
 
 export default function App() {
   const {
