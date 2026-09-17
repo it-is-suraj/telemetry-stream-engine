@@ -21,7 +21,7 @@ export default function App() {
       <div style={{ marginTop: '1.5rem' }}>
         <p>Valid Packets: {metrics.validCount}</p>
         <p>Corrupted Packets: {metrics.corruptedCount}</p>
-        <p>Dropped Packets: {metrics.droppedCount}</p>
+        <p>Dropped Packets: {metrics.outOfOrderCount}</p>
       </div>
 
       <MetricsTable packets={packets} />

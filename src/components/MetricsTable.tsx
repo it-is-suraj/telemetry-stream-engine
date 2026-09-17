@@ -1,4 +1,4 @@
-import type { TelemetryPacket } from "../workers/useTelemetryStream";
+import type { TelemetryPacket } from "../types/telemetryStream.type";
 
 export default function MetricsTable({ packets }: { packets: TelemetryPacket[] }) {
   return (

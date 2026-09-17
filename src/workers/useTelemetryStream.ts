@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { z } from "zod";
+import { TelemetryStreamPackage, type TelemetryPacket } from "../types/telemetryStream.type";
 
-export const TelemetryStreamPackage = z.object({
-  id: z.uuid(),
-  timestamp: z.number(),
-  serviceId: z.string(),
-  severity: z.enum(['info', 'warn', 'critical']),
-  latencyMs: z.number().nonnegative(),
-})
+type MetricsDto = {
+  validCount: number;
+  corruptedCount: number;
+  outOfOrderCount: number;
+};
 
-export type TelemetryPacket = z.infer<typeof TelemetryStreamPackage>;
+const getInitialMetricsData = (): MetricsDto => ({ validCount: 0, corruptedCount: 0, outOfOrderCount: 0 });
 
 export default function useTelemetryStream() {
 
   const workerRef = useRef<Worker | null>(null);
 
-  const [metrics, setMetrics] = useState({
-    validCount: 0,
-    corruptedCount: 0,
-    droppedCount: 0
-  })
+  const metricsRef = useRef<MetricsDto>(getInitialMetricsData());
+  const packetsRef = useRef<TelemetryPacket[]>([]);
 
+  const lastMaxTimestampRef = useRef<number>(0);
+
+  const [metrics, setMetrics] = useState(getInitialMetricsData());
   const [packets, setPackets] = useState<TelemetryPacket[]>([]);
 
   useEffect(() => {
@@ -31,34 +29,50 @@ export default function useTelemetryStream() {
     workerRef.current = worker;
 
     worker.onmessage = (e: MessageEvent) => {
-      const t0 = performance.now();
       const result = TelemetryStreamPackage.safeParse(e.data);
-      const parseTime = performance.now() - t0;
 
-      if (parseTime > 1) {
-        console.warn(`Zod parse took ${parseTime.toFixed(3)}ms for a single packet!`);
+      if (result.success) {
+        metricsRef.current.validCount++;
+        const packet = result.data;
+
+        if (packet.timestamp < lastMaxTimestampRef.current) {
+          metricsRef.current.outOfOrderCount++;
+        } else {
+          lastMaxTimestampRef.current = packet.timestamp;
+        }
+
+        packetsRef.current.push(packet);
+      } else {
+        metricsRef.current.corruptedCount++;
       }
-
-      setMetrics((prev) => {
-        if (result.success) {
-          return ({ ...prev, validCount: prev.validCount + 1 })
-        } else {
-          return ({ ...prev, corruptedCount: prev.corruptedCount + 1 })
-        }
-      })
-
-      setPackets((prev) => {
-        if (result.success) {
-          return [result.data, ...prev].slice(0, 1000)
-        } else {
-          return prev
-        }
-      });
     }
+
+    let animationFrameId: number;
+
+    const flushLoop = () => {
+      if (packetsRef.current.length > 0) {
+        const newBatch = packetsRef.current;
+        packetsRef.current = [];
+
+        const reversedNewBatch = newBatch.slice().reverse();
+        setPackets(prev => ([...reversedNewBatch, ...prev].slice(0, 1000)));
+
+        setMetrics({
+          validCount: metricsRef.current.validCount,
+          corruptedCount: metricsRef.current.corruptedCount,
+          outOfOrderCount: metricsRef.current.outOfOrderCount,
+        });
+
+      }
+      animationFrameId = requestAnimationFrame(flushLoop);
+    }
+
+    animationFrameId = requestAnimationFrame(flushLoop);
 
     return () => {
       worker.terminate();
       workerRef.current = null;
+      cancelAnimationFrame(animationFrameId);
     }
   }, [])
 
@@ -71,12 +85,11 @@ export default function useTelemetryStream() {
   }, [])
 
   const clearMetrics = useCallback(() => {
-    setMetrics({
-      validCount: 0,
-      corruptedCount: 0,
-      droppedCount: 0
-    })
-    setPackets([])
+    metricsRef.current = getInitialMetricsData();
+    packetsRef.current = [];
+    lastMaxTimestampRef.current = 0;
+    setMetrics(getInitialMetricsData());
+    setPackets([]);
   }, [])
 
   return ({ metrics, packets, startStream, stopStream, clearMetrics })
