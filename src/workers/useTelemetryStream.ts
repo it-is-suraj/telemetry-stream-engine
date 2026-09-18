@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TelemetryStreamPackage, type TelemetryPacket } from "../types/telemetryStream.type";
+import { insertSortedDesc } from "./insertedSorted";
 
 type MetricsDto = {
   validCount: number;
   corruptedCount: number;
-  outOfOrderCount: number;
+  bufferedCount: number;
 };
 
-const getInitialMetricsData = (): MetricsDto => ({ validCount: 0, corruptedCount: 0, outOfOrderCount: 0 });
+const JITTER_BUFFER_MS = 3000; // Hold packets for 3s to let late arrivals slot in
+
+const getInitialMetricsData = (): MetricsDto => ({ validCount: 0, corruptedCount: 0, bufferedCount: 0 });
 
 export default function useTelemetryStream() {
 
   const workerRef = useRef<Worker | null>(null);
 
-  const metricsRef = useRef<MetricsDto>(getInitialMetricsData());
-  const packetsRef = useRef<TelemetryPacket[]>([]);
-
-  const lastMaxTimestampRef = useRef<number>(0);
+  const stagingBufferRef = useRef<TelemetryPacket[]>([]);
 
   const [metrics, setMetrics] = useState(getInitialMetricsData());
   const [packets, setPackets] = useState<TelemetryPacket[]>([]);
@@ -28,41 +28,48 @@ export default function useTelemetryStream() {
     );
     workerRef.current = worker;
 
+    let validCount = 0;
+    let corruptedCount = 0;
+
     worker.onmessage = (e: MessageEvent) => {
       const result = TelemetryStreamPackage.safeParse(e.data);
 
       if (result.success) {
-        metricsRef.current.validCount++;
-        const packet = result.data;
-
-        if (packet.timestamp < lastMaxTimestampRef.current) {
-          metricsRef.current.outOfOrderCount++;
-        } else {
-          lastMaxTimestampRef.current = packet.timestamp;
-        }
-
-        packetsRef.current.push(packet);
+        validCount++;
+        insertSortedDesc(stagingBufferRef.current, result.data);
       } else {
-        metricsRef.current.corruptedCount++;
+        corruptedCount++;
       }
     }
 
     let animationFrameId: number;
 
     const flushLoop = () => {
-      if (packetsRef.current.length > 0) {
-        const newBatch = packetsRef.current;
-        packetsRef.current = [];
+      const now = Date.now();
+      const buffer = stagingBufferRef.current;
 
-        const reversedNewBatch = newBatch.slice().reverse();
-        setPackets(prev => ([...reversedNewBatch, ...prev].slice(0, 1000)));
+      const releaseBatch: TelemetryPacket[] = [];
 
-        setMetrics({
-          validCount: metricsRef.current.validCount,
-          corruptedCount: metricsRef.current.corruptedCount,
-          outOfOrderCount: metricsRef.current.outOfOrderCount,
+      while (buffer.length > 0) {
+        const oldestPacket = buffer[buffer.length - 1];
+        if (now - oldestPacket.timestamp >= JITTER_BUFFER_MS) {
+          releaseBatch.push(buffer.pop()!);
+        } else {
+          break;
+        }
+      }
+
+      if (releaseBatch.length > 0) {
+        setPackets((prev) => {
+          const reversedReleaseBatch = releaseBatch.slice().reverse();
+          return [...reversedReleaseBatch, ...prev].slice(0, 1000);
         });
 
+        setMetrics({
+          validCount,
+          corruptedCount,
+          bufferedCount: buffer.length,
+        });
       }
       animationFrameId = requestAnimationFrame(flushLoop);
     }
@@ -85,9 +92,7 @@ export default function useTelemetryStream() {
   }, [])
 
   const clearMetrics = useCallback(() => {
-    metricsRef.current = getInitialMetricsData();
-    packetsRef.current = [];
-    lastMaxTimestampRef.current = 0;
+    stagingBufferRef.current = [];
     setMetrics(getInitialMetricsData());
     setPackets([]);
   }, [])
