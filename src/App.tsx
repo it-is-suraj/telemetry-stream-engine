@@ -1,14 +1,12 @@
-import MetricsTable from "./components/MetricsTable";
+import VirtualizedTable from "./components/VirtualizedTable.tsx";
 import useTelemetryStream from "./workers/useTelemetryStream.ts"
 
 export default function App() {
-  const {
-    metrics, packets,
-    startStream, stopStream, clearMetrics
-  } = useTelemetryStream();
+
+  const { metrics, packets, startStream, stopStream, clearMetrics } = useTelemetryStream();
 
   return (
-    <main style={{ padding: '2rem' }}>
+    <main className="telemetry--container">
       <h1>Telemetry Stream Pipeline</h1>
 
       <div>
@@ -25,7 +23,8 @@ export default function App() {
         <p>Buffered Packets: {metrics.bufferedCount}</p>
       </div>
 
-      <MetricsTable packets={packets} />
+      <VirtualizedTable packets={packets} />
+      {/* <MetricsTable packets={packets} /> */}
     </main>
   )
 }
