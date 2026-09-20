@@ -9,7 +9,7 @@ type MetricsDto = {
   droppedCount: number;
 };
 
-const JITTER_BUFFER_MS = 3000; // Hold packets for 3s to let late arrivals slot in
+const JITTER_BUFFER_MS = 3000;
 
 const getInitialMetricsData = (): MetricsDto => ({ validCount: 0, corruptedCount: 0, bufferedCount: 0, droppedCount: 0 });
 
@@ -21,6 +21,7 @@ export default function useTelemetryStream() {
 
   const [metrics, setMetrics] = useState(getInitialMetricsData());
   const [packets, setPackets] = useState<TelemetryPacket[]>([]);
+  const [lastBatchSizeAdded, setLastBatchSizeAdded] = useState<number>(0);
 
   useEffect(() => {
     const worker = new Worker(
@@ -76,7 +77,7 @@ export default function useTelemetryStream() {
         const newestReleasedPacket = releaseBatchAsc[releaseBatchAsc.length - 1];
         if (newestReleasedPacket.timestamp > highWatermarkRef.current) {
           highWatermarkRef.current = newestReleasedPacket.timestamp;
-        }
+        };
 
         setPackets((prev) => ([...releaseBatchAsc.toReversed(), ...prev].slice(0, 1000)));
         setMetrics({
@@ -85,6 +86,7 @@ export default function useTelemetryStream() {
           bufferedCount: buffer.length,
           droppedCount
         });
+        setLastBatchSizeAdded(releaseBatchAsc.length);
       }
       animationFrameId = requestAnimationFrame(flushLoop);
     }
@@ -112,5 +114,5 @@ export default function useTelemetryStream() {
     setPackets([]);
   }, [])
 
-  return ({ metrics, packets, startStream, stopStream, clearMetrics })
+  return ({ metrics, packets, lastBatchSizeAdded, startStream, stopStream, clearMetrics })
 }
