@@ -61,6 +61,18 @@
   text-align: center;
 }
 
+.row-cell.critical {
+  color: #e53e3e;
+}
+
+.row-cell.warn {
+  color: #dd6b20;
+}
+
+.row-cell.info {
+  color: #3182ce;
+}
+
 .live--section {
   padding: 1rem 0;
   display: flex;
@@ -77,4 +89,30 @@
 .live-status.live {
   background: #e6fffa;
   border: 1px solid #38b2ac;
+}
+
+aside.pinned-packet--card {
+  width: 320px;
+  height: 500px;
+  border: 1px solid #4a5568;
+  background: #f7fafc;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.pinned-packet--card .pinned-packet--card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pinned-packet--card-header h3 {
+  margin: 0;
+}
+
+.pinned-packet--card .pinned-packet--note {
+  color: #718096;
 }

@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useRef, useState } from "react";
 import type { TelemetryPacket } from "../types/telemetryStream.type";
+import PinnedPacket from "./PinnedPacket";
 
 type VirtualizedTableProps = {
   packets: TelemetryPacket[];
@@ -11,7 +12,9 @@ type VirtualizedTableProps = {
 export default function VirtualizedTable({ packets, playStream, pauseStream }: VirtualizedTableProps) {
 
   const parentRef = useRef<HTMLDivElement | null>(null);
+
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [pinnedPacket, setPinnedPacket] = useState<TelemetryPacket | null>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: packets.length,
@@ -24,19 +27,30 @@ export default function VirtualizedTable({ packets, playStream, pauseStream }: V
     if (!parentRef.current) return;
     const isAtTop = parentRef.current.scrollTop < 15;
 
-    if (isAtTop && isPaused) {
+    if (isAtTop && isPaused && !pinnedPacket) {
       setIsPaused(false);
       playStream();
     } else if (!isAtTop && !isPaused) {
       setIsPaused(true);
       pauseStream();
     }
-  }, [isPaused, pauseStream, playStream]);
+  }, [isPaused, pinnedPacket, pauseStream, playStream]);
 
   const handleSetLive = () => {
     if (parentRef.current) parentRef.current.scrollTop = 0;
+    setPinnedPacket(null);
     setIsPaused(false);
     playStream();
+  }
+
+  const handlePinPacket = (packet: TelemetryPacket) => {
+    setPinnedPacket(packet);
+    setIsPaused(true);
+    pauseStream();
+  }
+
+  const handlePinnedPacketClose = () => {
+    setPinnedPacket(null);
   }
 
   return (<>
@@ -63,15 +77,18 @@ export default function VirtualizedTable({ packets, playStream, pauseStream }: V
           return (
             <div key={packet.id} className="virtualizer--row"
               style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+              onClick={() => handlePinPacket(packet)}
             >
               <span className="row-cell">{packet.timestamp}</span>
               <span className="row-cell">{packet.serviceId}</span>
-              <span className="row-cell">{packet.severity}</span>
+              <span className={`row-cell ${packet.severity}`}>{packet.severity}</span>
               <span className="row-cell">{packet.latencyMs}ms</span>
             </div>
           );
         })}
       </div>
     </div>
+
+    {pinnedPacket && <PinnedPacket packet={pinnedPacket} handleClose={handlePinnedPacketClose} />}
   </>);
 }
