@@ -3,7 +3,9 @@ import useTelemetryStream from "./workers/useTelemetryStream.ts"
 
 export default function App() {
 
-  const { metrics, packets, lastBatchSizeAdded, startStream, stopStream, clearMetrics } = useTelemetryStream();
+  const {
+    metrics, packets, startStream, stopStream, playStream, pauseStream
+  } = useTelemetryStream();
 
   return (
     <main className="telemetry--container">
@@ -13,7 +15,6 @@ export default function App() {
         <button onClick={() => startStream(10)}>Start at 10Hz</button>
         <button onClick={() => startStream(500)}>Start at 500Hz</button>
         <button onClick={() => stopStream()}>Stop</button>
-        <button onClick={() => clearMetrics()}>Reset</button>
       </div>
 
       <div className="telemetry--counts">
@@ -23,7 +24,7 @@ export default function App() {
         <p>Buffered Packets: {metrics.bufferedCount}</p>
       </div>
 
-      <VirtualizedTable packets={packets} lastBatchSizeAdded={lastBatchSizeAdded} />
+      <VirtualizedTable packets={packets} playStream={playStream} pauseStream={pauseStream} />
     </main>
   )
 }

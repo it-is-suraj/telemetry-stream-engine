@@ -21,7 +21,8 @@ export default function useTelemetryStream() {
 
   const [metrics, setMetrics] = useState(getInitialMetricsData());
   const [packets, setPackets] = useState<TelemetryPacket[]>([]);
-  const [lastBatchSizeAdded, setLastBatchSizeAdded] = useState<number>(0);
+
+  const isStreamPausedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const worker = new Worker(
@@ -77,16 +78,17 @@ export default function useTelemetryStream() {
         const newestReleasedPacket = releaseBatchAsc[releaseBatchAsc.length - 1];
         if (newestReleasedPacket.timestamp > highWatermarkRef.current) {
           highWatermarkRef.current = newestReleasedPacket.timestamp;
-        };
+        }
 
-        setPackets((prev) => ([...releaseBatchAsc.toReversed(), ...prev].slice(0, 1000)));
+        if (!isStreamPausedRef.current) {
+          setPackets((prev) => ([...releaseBatchAsc.toReversed(), ...prev].slice(0, 1000)));
+        }
         setMetrics({
           validCount,
           corruptedCount,
           bufferedCount: buffer.length,
           droppedCount
         });
-        setLastBatchSizeAdded(releaseBatchAsc.length);
       }
       animationFrameId = requestAnimationFrame(flushLoop);
     }
@@ -106,13 +108,18 @@ export default function useTelemetryStream() {
 
   const stopStream = useCallback(() => {
     workerRef.current?.postMessage({ action: 'STOP' });
-  }, [])
+  }, []);
 
-  const clearMetrics = useCallback(() => {
-    stagingBufferRef.current = [];
-    setMetrics(getInitialMetricsData());
-    setPackets([]);
-  }, [])
+  const playStream = () => {
+    isStreamPausedRef.current = false;
+  }
 
-  return ({ metrics, packets, lastBatchSizeAdded, startStream, stopStream, clearMetrics })
+  const pauseStream = () => {
+    isStreamPausedRef.current = true;
+  }
+
+  return ({
+    metrics, packets,
+    startStream, stopStream, playStream, pauseStream
+  })
 }
