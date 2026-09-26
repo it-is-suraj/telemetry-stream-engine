@@ -10,7 +10,6 @@ type VirtualizedTableProps = {
 };
 
 export default function VirtualizedTable({ packets, playStream, pauseStream }: VirtualizedTableProps) {
-
   const parentRef = useRef<HTMLDivElement | null>(null);
 
   const [isPaused, setIsPaused] = useState<boolean>(false);

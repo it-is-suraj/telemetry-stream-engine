@@ -1,7 +1,18 @@
-let intervalId: number | null = null;
+type FilterCriteria = {
+  severity?: string;
+  serviceId?: string;
+}
 
-self.onmessage = (e: MessageEvent<{ action: 'START' | 'STOP'; rateHz: number }>) => {
-  const { action, rateHz } = e.data;
+let intervalId: number | null = null;
+let currFilter: FilterCriteria = { severity: 'all', serviceId: 'all' }
+
+self.onmessage = (e: MessageEvent<{ action: 'START' | 'STOP' | 'UPDATE_FILTER'; rateHz: number; filters?: FilterCriteria }>) => {
+  const { action, rateHz, filters } = e.data;
+
+  if (action === 'UPDATE_FILTER' && filters) {
+    currFilter = { ...currFilter, ...filters };
+    return;
+  }
 
   if (action === 'STOP' && intervalId) {
     clearInterval(intervalId);
@@ -30,6 +41,13 @@ self.onmessage = (e: MessageEvent<{ action: 'START' | 'STOP'; rateHz: number }>)
           severity: ['info', 'warn', 'critical'][Math.floor(Math.random() * 3)],
           latencyMs: Number((Math.random() * 400).toFixed(2)),
         };
+
+      if (currFilter.severity && currFilter.severity !== 'all' && payload.severity !== currFilter.severity) {
+        return;
+      }
+      if (currFilter.serviceId && currFilter.serviceId !== 'all' && payload.serviceId !== currFilter.serviceId) {
+        return;
+      }
 
       self.postMessage(payload);
     }, delay);

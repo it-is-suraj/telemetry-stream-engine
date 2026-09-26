@@ -9,6 +9,11 @@ type MetricsDto = {
   droppedCount: number;
 };
 
+export type FilterCriteria = {
+  severity?: string;
+  serviceId?: string;
+}
+
 const JITTER_BUFFER_MS = 3000;
 
 const getInitialMetricsData = (): MetricsDto => ({ validCount: 0, corruptedCount: 0, bufferedCount: 0, droppedCount: 0 });
@@ -18,11 +23,24 @@ export default function useTelemetryStream() {
   const workerRef = useRef<Worker | null>(null);
   const stagingBufferRef = useRef<TelemetryPacket[]>([]);
   const highWatermarkRef = useRef<number>(0);
+  const isStreamPausedRef = useRef<boolean>(false);
+  const streamFiltersRef = useRef<FilterCriteria>({ severity: 'all', serviceId: 'all' });
 
   const [metrics, setMetrics] = useState(getInitialMetricsData());
   const [packets, setPackets] = useState<TelemetryPacket[]>([]);
 
-  const isStreamPausedRef = useRef<boolean>(false);
+  const instanceId = useRef<number | null>(null);
+
+  useEffect(() => {
+    const instId = Math.floor(Math.random() * 1000);
+    instanceId.current = instId;
+  }, []);
+
+  const matchesFilter = (packet: TelemetryPacket, filter: FilterCriteria) => {
+    const matchesSeverity = !filter.severity || filter.severity === 'all' || packet.severity === filter.severity;
+    const matchesService = !filter.serviceId || filter.serviceId === 'all' || packet.serviceId === filter.serviceId;
+    return matchesSeverity && matchesService;
+  };
 
   useEffect(() => {
     const worker = new Worker(
@@ -41,6 +59,8 @@ export default function useTelemetryStream() {
       if (result.success) {
         validCount++;
         const packet = result.data;
+        if (!matchesFilter(packet, streamFiltersRef.current)) return;
+
         if (packet.timestamp < highWatermarkRef.current) {
           droppedCount++;
         } else {
@@ -63,7 +83,7 @@ export default function useTelemetryStream() {
         if (now - oldestPacket.timestamp >= JITTER_BUFFER_MS) {
           const packet = buffer.pop()!;
 
-          if (packet.timestamp >= highWatermarkRef.current) {
+          if (packet.timestamp >= highWatermarkRef.current && matchesFilter(packet, streamFiltersRef.current)) {
             releaseBatchAsc.push(packet);
             highWatermarkRef.current = packet.timestamp;
           } else {
@@ -118,8 +138,15 @@ export default function useTelemetryStream() {
     isStreamPausedRef.current = true;
   }
 
+  const setStreamFilter = useCallback((filter: FilterCriteria) => {
+    streamFiltersRef.current = filter;
+    workerRef.current?.postMessage({ action: 'UPDATE_FILTER', filter });
+    stagingBufferRef.current = stagingBufferRef.current.filter((packet) => matchesFilter(packet, filter));
+    setPackets((prev) => prev.filter((packet) => matchesFilter(packet, filter)));
+  }, [])
+
   return ({
     metrics, packets,
-    startStream, stopStream, playStream, pauseStream
+    startStream, stopStream, playStream, pauseStream, setStreamFilter
   })
 }
