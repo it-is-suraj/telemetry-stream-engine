@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useRef, useState } from "react";
 import type { TelemetryPacket } from "../types/telemetryStream.type";
 import PinnedPacket from "./PinnedPacket";
+import NaiveLatencyChart from "./NaiveLatencyChart";
 
 type VirtualizedTableProps = {
   packets: TelemetryPacket[];
@@ -53,12 +54,14 @@ export default function VirtualizedTable({ packets, playStream, pauseStream }: V
   }
 
   return (<>
-    <div className="live--section">
-      {packets.length > 0 && <span className={`live-status ${!isPaused ? "live" : ""}`}>
+    {packets.length > 0 && <div className="live--section">
+      <span className={`live-status ${!isPaused ? "live" : ""}`}>
         {!isPaused ? '🟢 LIVE STREAM (AUTO-SCROLL)' : '🟡 PAUSED ON SCROLL'}
-      </span>}
+      </span>
       {isPaused && <button onClick={handleSetLive}>View Live</button>}
-    </div>
+    </div>}
+
+    <NaiveLatencyChart packets={packets} />
 
     <div ref={parentRef} className="virtualized--container" onScroll={handleScroll}>
       <div className="virtualized--header">

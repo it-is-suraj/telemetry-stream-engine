@@ -5,7 +5,6 @@ import useTelemetryStream from "./workers/useTelemetryStream.ts"
 import UseUrlHooks from "./workers/useUrlHooks.ts";
 
 export default function App() {
-
   const { filters, updateFilter } = UseUrlHooks();
   const {
     metrics, packets,
@@ -20,12 +19,12 @@ export default function App() {
     <main className="telemetry--container">
       <h1>Telemetry Stream Pipeline</h1>
 
-      <FilterToolbar updateFilterToUrl={updateFilter} filters={filters} />
-      <div className="telemetry--actions">
-        <button onClick={() => startStream(10)}>Start at 10Hz</button>
-        <button onClick={() => startStream(500)}>Start at 500Hz</button>
-        <button onClick={() => stopStream()}>Stop</button>
-      </div>
+      <FilterToolbar
+        filters={filters}
+        updateFilterToUrl={updateFilter}
+        startStream={startStream}
+        stopStream={stopStream}
+      />
 
       <div className="telemetry--counts">
         <p>Valid Packets: {metrics.validCount}</p>
